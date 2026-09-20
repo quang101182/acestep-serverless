@@ -38,11 +38,15 @@ RUN git clone https://github.com/ace-step/ACE-Step-1.5 /app/ace \
 # --- torch cu128, puis le paquet ------------------------------------------------------------------
 # Les versions sont celles qui marchent, mesurees le 20/09 : torch 2.7.1+cu128 / torchvision 0.22.1.
 # `vector_quantize_pytorch` est OBLIGATOIRE — sans lui le modele REFUSE de charger (paye le 20/09).
-# `nano-vllm` est ecarte (Linux-only ET inutile ici) : ACESTEP_LM_BACKEND=pt, comme en local.
+# ⚠ `nano-vllm` N'EST PAS SUR PyPI — il est VENDU dans le depot (`acestep/third_parts/nano-vllm`),
+# et `pip install -e .` echoue sans lui (run 35512495380). En local on s'en passe parce que Windows
+# ne sait pas le construire ; ici on est sous Linux, donc on l'installe depuis le depot, comme le
+# fait deja le script d'installation sur pod. Le moteur reste sur ACESTEP_LM_BACKEND=pt.
 # torchao / torchcodec en --no-deps, sinon ils tirent un AUTRE torch et cassent tout.
 RUN pip install -U pip setuptools wheel \
     && pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 \
          --index-url https://download.pytorch.org/whl/cu128 \
+    && pip install /app/ace/acestep/third_parts/nano-vllm \
     && pip install -e /app/ace \
     && pip install vector_quantize_pytorch diskcache lightning lycoris-lora modelscope \
          "peft>=0.18.0" "python-multipart>=0.0.18" pytorch-wavelets pywavelets \
