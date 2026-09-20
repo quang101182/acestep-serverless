@@ -36,7 +36,10 @@ RUN git clone https://github.com/ace-step/ACE-Step-1.5 /app/ace \
     && git -C /app/ace rev-parse HEAD > /app/ACESTEP_COMMIT
 
 # --- torch cu128, puis le paquet ------------------------------------------------------------------
-# Les versions sont celles qui marchent, mesurees le 20/09 : torch 2.7.1+cu128 / torchvision 0.22.1.
+# ⚠ ICI ON EST SOUS LINUX : ace-step y epingle **torch 2.10.0+cu128 / torchvision 0.25.0**. Les
+# versions 2.7.1 / 0.22.1 sont celles de l'installation WINDOWS de Quang — les transposer ici casse
+# le build (« No matching distribution found for torch==2.10.0+cu128 », run 35512690359). Le piege
+# etait deja ecrit dans acestep_pod_install.sh, point 3.
 # `vector_quantize_pytorch` est OBLIGATOIRE — sans lui le modele REFUSE de charger (paye le 20/09).
 # ⚠ `nano-vllm` N'EST PAS SUR PyPI — il est VENDU dans le depot (`acestep/third_parts/nano-vllm`),
 # et `pip install -e .` echoue sans lui (run 35512495380). En local on s'en passe parce que Windows
@@ -44,7 +47,7 @@ RUN git clone https://github.com/ace-step/ACE-Step-1.5 /app/ace \
 # fait deja le script d'installation sur pod. Le moteur reste sur ACESTEP_LM_BACKEND=pt.
 # torchao / torchcodec en --no-deps, sinon ils tirent un AUTRE torch et cassent tout.
 RUN pip install -U pip setuptools wheel \
-    && pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 \
+    && pip install torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 \
          --index-url https://download.pytorch.org/whl/cu128 \
     && pip install /app/ace/acestep/third_parts/nano-vllm \
     && pip install -e /app/ace \
