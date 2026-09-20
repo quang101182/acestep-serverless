@@ -68,7 +68,14 @@ RUN python -c "from huggingface_hub import snapshot_download; snapshot_download(
     && python -c "from huggingface_hub import snapshot_download; snapshot_download('ACE-Step/acestep-v15-base', local_dir='/app/checkpoints/acestep-v15-base')" \
     && du -sh /app/checkpoints
 
-ENV ACESTEP_CONFIG_PATH=/app/checkpoints/acestep-v15-base \
+# ⚠ `ACESTEP_CHECKPOINTS_DIR` EST OBLIGATOIRE. Sans elle, le moteur resout ses poids dans
+# `<project_root>/checkpoints` = `/app/ace/checkpoints`, qui est VIDE — il tente alors de les
+# TELECHARGER, ce que `HF_HUB_OFFLINE=1` interdit, et la generation echoue apres ~190 s sans dire
+# pourquoi (paye le 20/09, 0,034 $). En local ca passait parce que les chemins absolus de Windows
+# masquaient le probleme. Sources lues : `acestep/model_downloader.py:get_checkpoints_dir` et
+# `init_service_orchestrator.py` (`model_path = os.path.join(checkpoint_dir, config_path)`).
+ENV ACESTEP_CHECKPOINTS_DIR=/app/checkpoints \
+    ACESTEP_CONFIG_PATH=acestep-v15-base \
     ACESTEP_LM_MODEL_PATH=/app/checkpoints/acestep-5Hz-lm-1.7B \
     ACESTEP_LM_BACKEND=pt \
     ACESTEP_DEVICE=cuda \
