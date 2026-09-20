@@ -9,7 +9,7 @@ on:
         description: "Commit ou branche d'ACE-Step a figer dans l'image"
         default: main
   push:
-    branches: [main]
+    branches: [main, master]
     paths: ["Dockerfile", "handler.py", ".github/workflows/image.yml"]
 
 jobs:
