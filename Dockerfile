@@ -59,13 +59,16 @@ RUN pip install -U pip setuptools wheel \
     && rm -rf /root/.cache/pip
 
 # --- LES POIDS, dans l'image (c'est tout l'interet) -----------------------------------------------
-# Seulement ce dont l'enrichissement a besoin : turbo + LM 5 Hz + VAE + embedding ≈ 9,5 Go,
-# contre ~14 Go pour le depot complet.
+# ⚠ LE MODELE EST `acestep-v15-base`, PAS turbo : c'est celui des essais que Quang a valides a
+# l'oreille le 20/09 (« la meilleure reprise obtenue », reproductible 6/6, cf. acestep_lot_lego.py),
+# et il vit dans un depot Hugging Face SEPARE. Mettre turbo ici ferait sonner le renfort en ligne
+# autrement que ce qu'il a juge. Le reste (LM 5 Hz, VAE, embedding) vient du depot principal.
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('ACE-Step/Ace-Step1.5', local_dir='/app/checkpoints', allow_patterns=['acestep-v15-turbo/*','acestep-5Hz-lm-1.7B/*','vae/*','Qwen3-Embedding-0.6B/*','config.json'])" \
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('ACE-Step/Ace-Step1.5', local_dir='/app/checkpoints', allow_patterns=['acestep-5Hz-lm-1.7B/*','vae/*','Qwen3-Embedding-0.6B/*','config.json'])" \
+    && python -c "from huggingface_hub import snapshot_download; snapshot_download('ACE-Step/acestep-v15-base', local_dir='/app/checkpoints/acestep-v15-base')" \
     && du -sh /app/checkpoints
 
-ENV ACESTEP_CONFIG_PATH=/app/checkpoints/acestep-v15-turbo \
+ENV ACESTEP_CONFIG_PATH=/app/checkpoints/acestep-v15-base \
     ACESTEP_LM_MODEL_PATH=/app/checkpoints/acestep-5Hz-lm-1.7B \
     ACESTEP_LM_BACKEND=pt \
     ACESTEP_DEVICE=cuda \
