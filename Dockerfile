@@ -15,12 +15,17 @@ ARG CUDA_VERSION=12.8.1
 FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUNBUFFERED=1 \
-    PIP_BREAK_SYSTEM_PACKAGES=1 PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-dev git curl ffmpeg libsndfile1 \
-    && rm -rf /var/lib/apt/lists/* \
-    && ln -sf /usr/bin/python3 /usr/bin/python
+        python3 python3-venv python3-dev git curl ffmpeg libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ⚠ Sur Ubuntu 24.04, pip appartient a Debian : `pip install -U pip` echoue avec
+# « Cannot uninstall pip 24.0, RECORD file not found » (paye sur le run 35512337345), et PEP 668
+# refuse toute installation hors venv. Un environnement virtuel regle les deux d'un coup.
+RUN python3 -m venv /opt/venv
+ENV PATH=/opt/venv/bin:$PATH
 
 WORKDIR /app
 
