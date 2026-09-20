@@ -39,6 +39,89 @@ environnement. Arrête-toi et déplace la boucle.
 
 ---
 
+## 2-bis. ✅ ÇA MARCHE — validé en réel le 20/09 au soir (21 h)
+
+**Deux enrichissements en ligne ont abouti**, son modifié, original conservé, coût au journal,
+extinction constatée en **63 s**. Le § 3 ci-dessous décrit l'état d'AVANT cette validation ; il est
+conservé pour l'historique, mais **« aucun enrichissement n'a jamais abouti » est désormais FAUX**.
+
+### Les DEUX causes du blocage — elles se cumulaient, d'où l'impasse
+
+1. **Aucune machine disponible.** Les 7 pools d'origine (H100/A100/A40/A6000) sont les plus demandés
+   du marché : deux travaux sont restés **20 min** et **11 min** en file sans jamais démarrer. La
+   carte qui a finalement répondu n'était **pas dans la liste d'origine**.
+2. **Disque conteneur trop petit.** ⚠ **L'image ne fait PAS 9,4 Go : elle fait 14,90 Go compressée**
+   (une seule couche de 7,88 Go), donc bien plus posée. Avec `containerDiskInGb: 40` l'image se
+   téléchargeait **jusqu'au bout** puis le conteneur ne pouvait pas démarrer. **Porté à 100 Go.**
+
+⛔ **Le piège qui rend ce blocage invisible** : RunPod affiche **« worker is ready » APRÈS le
+téléchargement mais AVANT le lancement du conteneur**, et `/health` rend `ready: 1, idle: 1`. Tout
+paraît sain pendant que la file ne bouge pas. Ne jamais conclure d'un `ready` que le code tourne.
+
+### 🔑 Lire les logs du worker SANS le tableau de bord — c'est ce qui a tranché
+
+```bash
+curl -sL -o runpodctl.exe https://github.com/runpod/runpodctl/releases/latest/download/runpodctl-windows-amd64.exe
+./runpodctl.exe config --apiKey "$(cat .runpod_token_write)"
+./runpodctl.exe serverless logs <endpoint> [--follow]    # JSON lines {source,line,ts,workerId}
+./runpodctl.exe serverless health <endpoint>
+./runpodctl.exe gpu list                                 # tarifs + stock réel par datacenter
+```
+
+**La lecture qui diagnostique** : compter les lignes par `source`. **100 lignes `system`, 0 ligne
+`container`** = le conteneur sort avant que le handler démarre. Le CLI documente lui-même ce cas.
+(L'API REST et GraphQL n'exposent **aucun** log — seul ce CLI le fait.)
+
+### 💸 LE DÉFAUT LE PLUS GRAVE, et il venait du correctif lui-même
+
+Élargir les pools a fait prendre une carte à **3,49 $/h**, alors que `ACE_CLOUD_TARIF_H` valait
+**0,69**. Un morceau annoncé **0,0711 $** au journal en a coûté **0,4236 $** — **facteur 6**, et le
+plafond de 5 $/mois aurait sauté cinq fois avant que l'app ne le sache.
+
+- ✅ **Pools restreints aux 48 Go bon marché** : A40 **0,49** · RTX 6000 Ada **0,84** · L40 ·
+  L40S **1,09 $/h**. (Pour mémoire : RTX PRO 6000 2,09 · H100 SXM **3,49**.)
+- ✅ `ACE_CLOUD_TARIF_H = 1.20` — un **MAJORANT du pool**, jamais une moyenne.
+- ⛔ **Toute réouverture des pools à une carte plus chère DOIT remonter ce nombre dans le même
+  geste**, sinon le garde-fou re-ment en silence.
+
+### ⚠ Le veilleur d'argent annonçait 0 $ à tort
+
+`depense_mois()` ne lisait que le journal du proxy, **écrit uniquement quand l'app bascule d'elle-même** :
+tout essai lancé à la main lui était invisible. Il affichait « 0,0000 $ » pendant que RunPod avait
+facturé **0,6469 $**. Corrigé : il lit `GET https://rest.runpod.io/v1/billing/endpoints?bucketSize=month`
+et retient **le plus grand des deux** ; si RunPod ne répond pas il le dit, au lieu d'un zéro rassurant.
+⚠ Cette API exige un **User-Agent de navigateur** (sinon Cloudflare rend `error code: 1010`).
+
+### ⏱ Les temps et les coûts MESURÉS (morceau de 92,9 s)
+
+| Situation | Temps | Coût facturé |
+|---|---|---|
+| Machine **chaude** | **191 s** (×2,06 du temps réel) | 0,0342 $ *(tarif 0,69 supposé)* |
+| Machine **froide** (démarrage compris) | **379 s** (×4,08) | **0,4236 $ réels** |
+| Ping de diagnostic seul (démarrage à froid) | 307 s | 0,00003 $ |
+| *Rappel local, RTX 5070 Ti carte libre* | *205 s* | *0 $* |
+
+⇒ **Le cloud n'est PAS plus rapide que le PC** : à chaud c'est équivalent. Son seul intérêt est de
+**laisser la carte libre pendant que Quang joue**. Ne jamais le vendre comme un gain de vitesse.
+
+### Autres pièges payés ce soir-là
+
+- **Un service relit son fichier au DÉMARRAGE** : le proxy tournait depuis 16 h 37 avec l'ancien
+  tarif alors que le fichier était corrigé à 19 h 19. Vérifier `CreationDate` du process contre
+  `LastWriteTime` du fichier. `launch-generate-agent.ps1` est **idempotent** : il ne relance PAS un
+  proxy déjà vivant — il faut le tuer d'abord.
+- **Le banc criait au loup** : il contrôlait l'extinction **20 s** après la fin, alors qu'elle prend
+  60 s (`idleTimeout`) + propagation. Corrigé : il patiente jusqu'à 240 s en relisant toutes les 10 s.
+- `workersStandby: 1` **n'est PAS un réglage** de facturation (l'API refuse de l'écrire) : valeur
+  calculée. Ne pas crier à la fuite d'argent en le voyant.
+- **Forcer le recyclage d'un worker** (pour qu'il reprenne une nouvelle config) : `workersMax: 0`,
+  attendre ~30 s, puis `workersMax: 1`. Un worker déjà lancé **garde son ancienne configuration**.
+- Un ping vaut **0,00003 $** : `python _musique-wip/acestep_cloud_ping.py` (diagnostic seul) répond
+  torch / CUDA / nom du GPU / VRAM. À jouer **avant** tout diagnostic compliqué.
+- Un travail **`IN_QUEUE` ne se facture pas** — d'où « ça n'a rien coûté » malgré 31 min d'attente.
+
+---
+
 ## 3. L'état exact au 20/09 au soir
 
 **Côté PC — LIVRÉ, TESTÉ, EN SERVICE** (app `generate_studio.html` en **v6.95**) :
