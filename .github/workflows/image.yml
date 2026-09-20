@@ -1,0 +1,61 @@
+name: Construire et publier l'image
+
+# Rien n'est construit sur le PC de Quang : GitHub fournit la machine, et l'image part directement
+# vers ghcr.io. Declenche a la main, ou a chaque changement du Dockerfile / du handler.
+on:
+  workflow_dispatch:
+    inputs:
+      acestep_ref:
+        description: "Commit ou branche d'ACE-Step a figer dans l'image"
+        default: main
+  push:
+    branches: [main]
+    paths: ["Dockerfile", "handler.py", ".github/workflows/image.yml"]
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # ⚠ Un runner GitHub n'a qu'environ 14 Go de libre sur « / » — trop peu pour une image qui
+      # embarque 9,5 Go de poids plus torch. On recupere la place des outils preinstalles (~45 Go).
+      - name: Faire de la place
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 8192
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-docker-images: "true"
+
+      - uses: actions/checkout@v4
+
+      - name: Place disponible
+        run: df -h /
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construire et pousser
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: false
+          build-args: |
+            ACESTEP_REF=${{ inputs.acestep_ref || 'main' }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/acestep-serverless:latest
+            ghcr.io/${{ github.repository_owner }}/acestep-serverless:${{ github.run_number }}
+
+      - name: Place restante
+        if: always()
+        run: df -h /
