@@ -1,0 +1,144 @@
+# Reprise — brancher le moteur 2 (ACE-Step) en cloud pour Generate Studio
+
+> Dossier **autosuffisant** : tout ce qu'il faut est ici, aucun renvoi à une mémoire externe.
+> Écrit le 20/09/2026 au soir, après une session qui a **mal mené** ce chantier. Lis la méthode
+> avant de coder : elle est la raison d'être de ce fichier.
+
+---
+
+## 1. Ce qu'il faut obtenir
+
+Quand la carte graphique du PC est prise (Quang joue), un morceau déjà composé par le moteur 1 (YuE2)
+doit partir **en ligne** pour y être enrichi par ACE-Step (`task_type="lego"`), puis revenir.
+**Décision de Quang, 20/09 : la bascule est AUTOMATIQUE** — on ne lui demande rien, un voyant dit
+seulement où ça a calculé. Objectif réel : **ne pas ralentir son jeu**, pas aller plus vite.
+
+⛔ **Sa condition, répétée deux fois** : *« tu feras bien attention que le RunPod ne consomme pas
+d'argent silencieusement par heure »*. Précédent réel : un pod oublié une nuit = **38 $** en juin.
+
+---
+
+## 2. ⚠️ LA MÉTHODE — c'est ici que la session du 20/09 s'est plantée
+
+Elle a **construit une image de 9,4 Go pour découvrir** si le conteneur marchait. Chaque erreur,
+même triviale, coûtait **11 min de build + 5 à 13 min pour tirer l'image + jusqu'à 20 min de test**.
+Payé **quatre fois**, pour des causes toutes connues d'avance.
+
+**Fais l'inverse :**
+
+1. **Un pod jetable interactif d'abord** — GPU **A40 48 Go** (`NVIDIA A40`, ~0,35 $/h), image
+   `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404`. Installe avec la recette **déjà éprouvée** :
+   `C:/Users/quang/Documents/ComfyUI/_musique-wip/acestep_pod_install.sh` (elle documente ses pièges).
+2. **Fais tourner un VRAI enrichissement dessus** et **chronomètre-le**. Tant que ça n'a pas tourné
+   une fois, rien n'est acquis.
+3. **Seulement ensuite**, fige cette recette exacte dans l'image serverless de ce dépôt.
+4. **Termine le pod** dès que c'est fait, et **vérifie le compte** (§ 6).
+
+📌 Règle générale : si ton cycle essai → correction dépasse **10 minutes**, tu es dans le mauvais
+environnement. Arrête-toi et déplace la boucle.
+
+---
+
+## 3. L'état exact au 20/09 au soir
+
+**Côté PC — LIVRÉ, TESTÉ, EN SERVICE** (app `generate_studio.html` en **v6.95**) :
+- le moteur 2 tourne **en local** : `enrich_loop` dans `_studio_llm_proxy.py`, marqueur
+  `enrichissement.json` par morceau, son d'origine gardé dans `gs/audio/_bruts/<morceau>.flac` ;
+- écran des 4 modes (🎵 Moteur 1 · ✨ **1 + 2 par défaut** · 🎨 Moteur 2 · ⚖️ 1 et 2) ;
+- pastilles ① / ② / ①+② dans la playlist, ☁️ déjà câblé pour le cloud ;
+- le lecteur attend l'enrichissement (sinon il joue un son remplacé sous lui).
+- Modèle servi : **`acestep-v15-base`** — celui que Quang a validé à l'oreille. Pas turbo.
+- Mesures locales (RTX 5070 Ti 16 Go), morceau de 93 s : **205 s** avec `base` carte encombrée,
+  129 s avec `turbo`. Le moteur monte à **7,4 Go de pointe** ; sous ~8 Go libres il tombe en mode
+  contraint (jusqu'à 5× plus lent) — c'est **ce seuil qui déclenche la bascule cloud**
+  (`ACE_VRAM_CONFORT = 8000`).
+
+**Côté cloud — EN PLACE MAIS JAMAIS VALIDÉ** :
+- image publique `ghcr.io/quang101182/acestep-serverless:latest` (9,4 Go, modèle `base`), construite
+  par GitHub Actions depuis ce dépôt ;
+- endpoint RunPod **`8pk1uqelel51rl`** (`acestep-moteur2`), `workersMin: 0`, `workersMax: 1`,
+  `idleTimeout: 60`, pools `ADA_80_PRO,AMPERE_80,AMPERE_48` ;
+- son identifiant est dans `C:/Users/quang/Documents/ComfyUI/.acestep_endpoint` — **ce fichier seul
+  autorise le proxy à basculer en ligne** ; le supprimer désactive tout le cloud proprement.
+- ⛔ **Aucun enrichissement en ligne n'a jamais abouti.** C'est tout le travail qui reste.
+
+---
+
+## 4. Les pièges déjà payés — ne les repaie pas
+
+**Construction de l'image**
+1. ❌ **`easimon/maximize-build-space`** : un runner `ubuntu-latest` a déjà **87 Go libres** ;
+   l'action réserve cet espace ailleurs et ne laisse que 8 Go à Docker → « no space left ». Elle
+   **cause** la panne qu'elle prétend éviter.
+2. Ubuntu 24.04 : `pip install -U pip` échoue (pip appartient à Debian) → **installer dans un venv**.
+3. **`nano-vllm` n'est pas sur PyPI** : il est vendu dans le dépôt
+   (`acestep/third_parts/nano-vllm`) ; `pip install -e .` échoue sans lui.
+4. ⚠️ **torch n'a pas la même version selon l'OS** : Windows **2.7.1 / 0.22.1**,
+   Linux **2.10.0+cu128 / 0.25.0**. Transposer les versions Windows casse le build.
+5. ⚠️ **`ACESTEP_CHECKPOINTS_DIR` est obligatoire** : sans elle, le moteur cherche ses poids dans
+   `<projet>/checkpoints` (vide), tente de les **retélécharger** — interdit par `HF_HUB_OFFLINE=1` —
+   et échoue après ~190 s **sans message**. (`acestep/model_downloader.py:get_checkpoints_dir`.)
+
+**API RunPod**
+6. ⛔ **`/runsync` est INUTILISABLE pour un travail long** : l'identifiant `sync-…` qu'il rend est
+   refusé par `/status/<id>` **et** `/cancel/<id>` (404). Le travail devient insuivable **et
+   inarrêtable** — c'est ce qui a provoqué les deux fuites. **Utiliser `/run`.**
+7. ⛔ **Abandonner côté client n'arrête RIEN** : il faut `POST /v2/<ep>/cancel/<id>`. Déjà corrigé
+   dans `enrich_cloud` (`_ace_cloud_annule`, sur tous les chemins de sortie).
+8. La clé **en lecture seule** passe `/health` (200) mais rend **403 sur `/run`** — utiliser
+   `.runpod_token_write`. Les deux clés se comportant pareil sur `/health`, le piège est invisible.
+9. Modifier l'endpoint rend **`409 Conflict`** pendant ~1 min sur les lancements suivants.
+10. **24 Go ne suffisent pas** : sur `AMPERE_24`, un morceau de 93 s n'était **pas fini après
+    20 min**. La roadmap disait déjà `lego` **« testé sur A40 48 Go »**. Le pool **80 Go** est resté
+    **13 min en file** sans démarrer (capacité indisponible ce soir-là) → **A40 48 Go est le bon
+    point de départ**.
+11. Le payload est limité : **MP3 192 kbit/s** à l'aller (le plus long morceau = 7,8 Mo en base64,
+    pour une limite de 10 Mo). `enrich_cloud` redescend le débit et **renonce** plutôt que d'envoyer
+    un appel voué à l'échec.
+12. Un banc **ne doit pas attendre la réponse HTTP** d'un travail de 15-20 min : il expirait et
+    **nettoyait le dossier sous un travail en cours**. Suivre le **marqueur sur le disque**.
+13. Le banc créait un **doublon facturé** : la boucle `enrich_loop` prenait le même dossier. Il pose
+    maintenant le mode sur « moteur 1 seul » le temps de l'essai.
+
+---
+
+## 5. Ce qui reste à faire, dans l'ordre
+
+1. **Pod jetable A40** → installer → **un enrichissement réel qui aboutit** → noter le temps.
+2. Reporter la recette exacte dans le `Dockerfile` de ce dépôt, rebuild, **ping de diagnostic**
+   (`{"input":{"ping":true,"diag_seul":true}}` rend torch / CUDA / nom du GPU / VRAM).
+3. `python _musique-wip/test_v695_cloud_reel.py` doit passer **9/9**.
+4. Choisir le GPU **le moins cher qui tient la performance** (payer 2 $/h pendant 3 min coûte moins
+   que 0,69 $/h pendant 25).
+5. Vérifier le **voyant ☁️** dans la playlist sur un morceau réellement fait en ligne.
+6. Finir la feuille de route : **filtres cumulables par moteur** + barre orange (maquette § 5 de
+   `C:/Users/quang/Documents/ComfyUI/GENERATE_STUDIO_MAQUETTE_MOTEURS_v0.3.html`).
+
+---
+
+## 6. Sécurité argent — à vérifier À CHAQUE FOIS
+
+```bash
+python C:/Users/quang/Documents/ComfyUI/acestep_veille_cloud.py     # 0 = rien ne coûte
+```
+Il est aussi planifié tous les jours à 9h50 (tâche Windows `MoteurDeuxVeilleCloud`).
+
+- **Geste d'urgence** si un worker s'emballe : `saveEndpoint` avec **`workersMax: 0`** → 0 $/h en
+  moins de 15 s (constaté deux fois).
+- **Purger la file** : `POST /v2/<ep>/purge-queue`.
+- Plafond en dur côté proxy : **5 $/mois** (`ACE_CLOUD_PLAFOND_MOIS`) — au-delà, plus de bascule.
+- État au 20/09 au soir : **0 pod, 0 volume, 0 $/h, crédit 33,07 $** ; essais de la journée **0,64 $**.
+- ⭐ **Aucune carte bancaire enregistrée** sur le compte RunPod → la perte maximale possible est le
+  crédit prépayé. **Ne jamais en réenregistrer une** sans que Quang le décide.
+- ⚠️ **Pas de network volume** : il serait facturé 0,07 $/Go/mois **même à l'arrêt**. C'est la raison
+  d'être de l'image auto-portante.
+
+---
+
+## 7. Ce qu'il ne faut PAS refaire
+
+- ⛔ Ne pas re-présenter le cloud comme « plus rapide » ou « 0,02 $ le morceau » : mesuré,
+  c'est **0,69 $/h** en serverless 24 Go et **4 à 13 min de démarrage à froid**.
+- ⛔ Ne pas reposer à Quang la question « volume réseau ou image ? » : **tranché — image, rien à vide**.
+- ⛔ Ne pas toucher aux images ni à la vidéo : les images ne quittent **jamais** le PC, la vidéo n'a
+  **jamais** de bascule automatique (0,54 $ les 6 s contre ~0,10 $ un morceau).
