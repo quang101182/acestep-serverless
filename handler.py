@@ -89,6 +89,30 @@ def handler(job):
             demarre_serveur()
         return {"ok": True, "pong": True, "secondes": round(time.time() - t0, 1), **diag}
 
+    # --- CREATION PURE (mode 🎨 « moteur 2 seul »), ajoute le 20/09 au soir ---------------------
+    # ACE-Step sait COMPOSER, pas seulement enrichir : `task_type="text2music"`, donc SANS
+    # `src_audio_path`. Champs valides sur pod le 20/09 par `_musique-wip/acestep_inversion.py`
+    # (piste B, « que des nombres ») : lyrics, prompt, audio_duration, vocal_language, batch_size,
+    # + bpm / key_scale / time_signature / thinking.
+    #
+    # ⚠ POURQUOI ON LE VALIDE ICI ET PAS SUR LE PC : `text2music` passe par le LM (contrairement a
+    # `lego`, qui l'ignore — « Skipping LM for task_type='lego' »), donc il demande plus de memoire.
+    # La carte du PC avait 8,1 Go pris par les applis de Quang : le garde-fou anti-gel aurait refuse
+    # le depart, et le forcer risquait de geler sa machine. Ici la carte fait 48 Go et ne coute rien
+    # a vide. Le cloud sert de banc d'essai SANS RISQUE, c'est son deuxieme usage.
+    if e.get("creer"):
+        duree = float(e.get("duration") or 0)
+        if duree <= 0:
+            return {"ok": False, "erreur": "il faut une duration pour creer"}
+        corps = {"task_type": "text2music", "lyrics": e.get("lyrics") or "",
+                 "prompt": e.get("prompt") or "", "audio_duration": duree,
+                 "vocal_language": e.get("vocal_language") or "english",
+                 "batch_size": 1}
+        for opt in ("bpm", "key_scale", "time_signature", "thinking"):
+            if e.get(opt) is not None:
+                corps[opt] = e[opt]
+        return _travaille(corps, e, t0)
+
     b64 = e.get("audio_b64")
     duree = float(e.get("duration") or 0)
     if not b64 or duree <= 0:
@@ -103,6 +127,15 @@ def handler(job):
     corps = {"task_type": "lego", "src_audio_path": src,
              "lyrics": e.get("lyrics") or "", "prompt": e.get("prompt") or "",
              "global_caption": e.get("prompt") or "", "audio_duration": duree, "batch_size": 1}
+    return _travaille(corps, e, t0, a_effacer=[src])
+
+
+def _travaille(corps, e, t0, a_effacer=()):
+    """Soumet une tache au moteur et attend son resultat — le MEME chemin pour l'enrichissement et
+    pour la creation. C'est volontaire : ce chemin (release_task -> query_result -> extraction du
+    fichier -> MP3) est deja eprouve en production ; un second chemin parallele serait un second
+    endroit ou se tromper. Seul le `corps` change."""
+    demarre_serveur()
     rep = _post("/release_task", corps, timeout=120)
     tid = ((rep or {}).get("data") or {}).get("task_id")
     if not tid:
@@ -143,14 +176,14 @@ def handler(job):
         return {"ok": False, "erreur": "aucun fichier rendu (statut %s)" % statut,
                 "detail": str((items[0] if items else {}).get("result"))[:900]}
 
-    out = os.path.join(tmp, "out_%d.mp3" % int(time.time()))
+    out = os.path.join(tempfile.gettempdir(), "out_%d.mp3" % int(time.time()))
     try:
         en_mp3(fichier, out, e.get("debit") or "320k")
     except Exception as ex:
         return {"ok": False, "erreur": "conversion MP3 impossible : %s" % str(ex)[:200]}
     with open(out, "rb") as f:
         sortie = base64.b64encode(f.read()).decode("ascii")
-    for p in (src, out, fichier):
+    for p in list(a_effacer) + [out, fichier]:
         try:
             os.remove(p)
         except OSError:
