@@ -27,6 +27,14 @@ image à reconstruire pour changer de modèle.
 **aucun secret ne voyage** (le worker n'a jamais besoin de joindre le PC). En contrepartie il faut
 rester sous les limites de RunPod, d'où le MP3 192 kbit/s à l'aller (~2,9 Mo pour 4 minutes).
 
+## Mesuré au premier build réussi (20/09/2026)
+
+| | |
+|---|---|
+| Poids embarqués | **9,4 Go** (`acestep-v15-base` + LM 5 Hz + VAE + embedding) |
+| Durée du build | **11 minutes** sur un runner `ubuntu-latest` |
+| Tags publiés | `:latest` et `:<numéro de run>` |
+
 ## Construire
 
 Tout se passe sur GitHub Actions — **rien à installer sur le PC** :
