@@ -71,9 +71,23 @@ def en_mp3(src, dst, debit="320k"):
 def handler(job):
     t0 = time.time()
     e = job.get("input") or {}
-    if e.get("ping"):                                  # reveil a blanc (mesure du demarrage a froid)
-        demarre_serveur()
-        return {"ok": True, "pong": True, "secondes": round(time.time() - t0, 1)}
+    if e.get("ping"):
+        # Reveil a blanc ET DIAGNOSTIC. ⚠ Le 20/09, un enrichissement en ligne a mis **20 min** la ou
+        # le PC met 3 min 25 — et il etait impossible de savoir si le worker calculait seulement sur
+        # GPU. On ne redeploie plus une image sans pouvoir repondre a cette question en 10 secondes.
+        diag = {}
+        try:
+            import torch
+            diag = {"torch": torch.__version__, "cuda_dispo": bool(torch.cuda.is_available()),
+                    "cuda_version": getattr(torch.version, "cuda", None),
+                    "gpu": (torch.cuda.get_device_name(0) if torch.cuda.is_available() else None),
+                    "vram_go": (round(torch.cuda.get_device_properties(0).total_memory / 1e9, 1)
+                                if torch.cuda.is_available() else None)}
+        except Exception as ex:
+            diag = {"erreur_torch": str(ex)[:200]}
+        if not e.get("diag_seul"):
+            demarre_serveur()
+        return {"ok": True, "pong": True, "secondes": round(time.time() - t0, 1), **diag}
 
     b64 = e.get("audio_b64")
     duree = float(e.get("duration") or 0)
