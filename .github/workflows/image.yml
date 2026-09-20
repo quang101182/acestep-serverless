@@ -19,18 +19,11 @@ jobs:
       contents: read
       packages: write
     steps:
-      # ⚠ Un runner GitHub n'a qu'environ 14 Go de libre sur « / » — trop peu pour une image qui
-      # embarque 9,5 Go de poids plus torch. On recupere la place des outils preinstalles (~45 Go).
-      - name: Faire de la place
-        uses: easimon/maximize-build-space@v10
-        with:
-          root-reserve-mb: 8192
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
-          remove-codeql: "true"
-          remove-docker-images: "true"
-
+      # ⚠ NE PAS ajouter « maximize-build-space » ici. Mesure du 20/09 sur ce depot : un runner
+      # ubuntu-latest a deja **87 Go libres sur /**, et cette action prend justement cet espace libre
+      # pour en faire un volume monte AILLEURS — alors que buildkit ecrit dans /var/lib/docker, reste
+      # sur /. Resultat : « no space left on device » des la 2e etape. L'action a CAUSE la panne
+      # qu'elle devait eviter. Le conseil « un runner n'a que 14 Go » est perime.
       - uses: actions/checkout@v4
 
       - name: Place disponible
