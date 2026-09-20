@@ -115,10 +115,19 @@ def handler(job):
                 return {"ok": False, "erreur": "reponse illisible : %s" % str(ex)[:200]}
             break
         if statut == 2:
-            return {"ok": False, "erreur": "le moteur a echoue"}
+            # ⚠ Ne JAMAIS se contenter de « le moteur a echoue » : sans la raison, on diagnostique a
+            # l'aveugle depuis le PC (paye le 20/09 — un travail de 189 s pour un message vide).
+            detail = ""
+            try:
+                detail = json.dumps(json.loads(items[0].get("result") or "[]"), ensure_ascii=False)[:900]
+            except Exception:
+                detail = str(items[0].get("result"))[:900]
+            return {"ok": False, "erreur": "le moteur a echoue", "detail": detail,
+                    "progres": (items[0].get("progress_text") or "")[:400]}
 
     if not fichier or not os.path.isfile(fichier):
-        return {"ok": False, "erreur": "aucun fichier rendu (statut %s)" % statut}
+        return {"ok": False, "erreur": "aucun fichier rendu (statut %s)" % statut,
+                "detail": str((items[0] if items else {}).get("result"))[:900]}
 
     out = os.path.join(tmp, "out_%d.mp3" % int(time.time()))
     try:
