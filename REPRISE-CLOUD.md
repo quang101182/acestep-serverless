@@ -1,9 +1,6 @@
-> ## ▶️ REPRISE — lundi 21/09/2026, 10 h 10
+> ## ▶️ REPRISE — lundi 21/09/2026, 13 h 35
 > **Le document à lire en premier : `C:/Users/quang/Documents/ComfyUI/ROADMAP-lisibilite-playlist.md`**
-> (autosuffisant : état exact en v7.11, conception validée par Quang, ce qui reste à faire dans l'ordre,
-> pièges payés, bancs). Prochaine étape : **zone C de la ligne de playlist en cases fixes** (§ 3.1).
-> ⚠️ Deux décisions à demander à Quang : le **cloud tourne encore sur le modèle `base`** (§ 3.2) et le
-> **mode 🎨 + reprise jette la partition** (§ 3.3).
+> (bloc « REPRISE » en tête : état exact en v7.22, premier point = score de fidélité du moteur 2, pièges payés).
 
 > ## ✅ ÉTAT au 21/09/2026 11 h 45 — le cloud tourne en TURBO, validé en réel
 > Image **`:11`** (commit `a3ce38e`) : `acestep-v15-turbo`, poids HF figés `19671f40` (empreintes
