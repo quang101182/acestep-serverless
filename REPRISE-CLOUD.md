@@ -1,3 +1,10 @@
+> ## ▶️ REPRISE — lundi 21/09/2026, 10 h 10
+> **Le document à lire en premier : `C:/Users/quang/Documents/ComfyUI/ROADMAP-lisibilite-playlist.md`**
+> (autosuffisant : état exact en v7.11, conception validée par Quang, ce qui reste à faire dans l'ordre,
+> pièges payés, bancs). Prochaine étape : **zone C de la ligne de playlist en cases fixes** (§ 3.1).
+> ⚠️ Deux décisions à demander à Quang : le **cloud tourne encore sur le modèle `base`** (§ 3.2) et le
+> **mode 🎨 + reprise jette la partition** (§ 3.3).
+
 # Reprise — brancher le moteur 2 (ACE-Step) en cloud pour Generate Studio
 
 > Dossier **autosuffisant** : tout ce qu'il faut est ici, aucun renvoi à une mémoire externe.
