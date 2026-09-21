@@ -5,6 +5,13 @@
 > ⚠️ Deux décisions à demander à Quang : le **cloud tourne encore sur le modèle `base`** (§ 3.2) et le
 > **mode 🎨 + reprise jette la partition** (§ 3.3).
 
+> ## ✅ ÉTAT au 21/09/2026 11 h 45 — le cloud tourne en TURBO, validé en réel
+> Image **`:11`** (commit `a3ce38e`) : `acestep-v15-turbo`, poids HF figés `19671f40` (empreintes
+> identiques au PC, vérifiées au build), code ACE-Step figé `ca1e85fe` (= le PC). Template pointé sur le
+> tag **numéroté** `:11`. Le worker renvoie le modèle réellement chargé (`/v1/models`) ; le PC refuse
+> tout son qui ne vient pas de turbo. Banc réel `test_v695_cloud_reel.py` **10/10** : 126 s, **0,037 $**,
+> extinction 62 s. ⚠️ Toute la prose ci-dessous qui dit « modèle `base` » décrit l'état du 20/09.
+
 # Reprise — brancher le moteur 2 (ACE-Step) en cloud pour Generate Studio
 
 > Dossier **autosuffisant** : tout ce qu'il faut est ici, aucun renvoi à une mémoire externe.
