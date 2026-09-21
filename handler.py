@@ -64,6 +64,14 @@ def demarre_serveur():
     raise RuntimeError("le serveur ACE-Step n'a pas repondu en 180 s")
 
 
+def modeles_charges():
+    """21/09 - ce que le serveur a REELLEMENT charge (GET /v1/models), pas ce qu'on lui demande :
+    le 20/09, un `model` demande mais non charge etait remplace EN SILENCE par le modele primaire.
+    Renvoye avec chaque morceau, pour que le PC puisse le verifier et l'ecrire dans son journal."""
+    r = _get("/v1/models", timeout=10)
+    return json.dumps(r, ensure_ascii=False)[:600] if r is not None else None
+
+
 def en_mp3(src, dst, debit="320k"):
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-b:a", debit, dst], check=True)
 
@@ -85,8 +93,10 @@ def handler(job):
                                 if torch.cuda.is_available() else None)}
         except Exception as ex:
             diag = {"erreur_torch": str(ex)[:200]}
+        diag["modele_config"] = os.environ.get("ACESTEP_CONFIG_PATH")
         if not e.get("diag_seul"):
             demarre_serveur()
+            diag["modeles_charges"] = modeles_charges()
         return {"ok": True, "pong": True, "secondes": round(time.time() - t0, 1), **diag}
 
     # --- CREATION PURE (mode 🎨 « moteur 2 seul »), ajoute le 20/09 au soir ---------------------
@@ -195,7 +205,8 @@ def _travaille(corps, e, t0, a_effacer=()):
     except Exception:
         pass
     return {"ok": True, "audio_b64": sortie, "secondes": round(time.time() - t0, 1),
-            "octets": len(sortie), "commit": commit}
+            "octets": len(sortie), "commit": commit,
+            "modele_config": os.environ.get("ACESTEP_CONFIG_PATH"), "modeles_charges": modeles_charges()}
 
 
 runpod.serverless.start({"handler": handler})

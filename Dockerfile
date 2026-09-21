@@ -30,7 +30,10 @@ ENV PATH=/opt/venv/bin:$PATH
 WORKDIR /app
 
 # --- ACE-Step, epingle a une reference (image reproductible ; « main » derive avec le temps) -------
-ARG ACESTEP_REF=main
+# 21/09 : FIGE sur le commit que le PC fait tourner (installation editable de
+# C:/Users/quang/Documents/ACEStep/ace, arbre propre). « main » derive : le cloud doit rendre ce
+# que le PC rend, sinon un morceau fait en ligne sonne autrement qu'un morceau fait en local.
+ARG ACESTEP_REF=ca1e85fe9430179831e6bc6be790c332190a3866
 RUN git clone https://github.com/ace-step/ACE-Step-1.5 /app/ace \
     && git -C /app/ace checkout ${ACESTEP_REF} \
     && git -C /app/ace rev-parse HEAD > /app/ACESTEP_COMMIT
@@ -58,14 +61,21 @@ RUN pip install -U pip setuptools wheel \
     && pip install runpod huggingface_hub hf_transfer \
     && rm -rf /root/.cache/pip
 
-# --- LES POIDS, dans l'image (c'est tout l'interet) -----------------------------------------------
-# ⚠ LE MODELE EST `acestep-v15-base`, PAS turbo : c'est celui des essais que Quang a valides a
-# l'oreille le 20/09 (« la meilleure reprise obtenue », reproductible 6/6, cf. acestep_lot_lego.py),
-# et il vit dans un depot Hugging Face SEPARE. Mettre turbo ici ferait sonner le renfort en ligne
-# autrement que ce qu'il a juge. Le reste (LM 5 Hz, VAE, embedding) vient du depot principal.
+# --- LES POIDS, dans l'image (c'est tout l'interet) ---------------------------------------------
+# ⚠ LE MODELE EST `acestep-v15-turbo` depuis le 21/09 (il etait `base` le 20/09).
+# Pourquoi : le pod du 20/09 au matin, celui des essais que Quang a valides a l'oreille, ne chargeait
+# QUE turbo — et le moteur retombe EN SILENCE sur son modele primaire quand le `model` demande n'est
+# pas charge (`acestep/api/job_model_selection.py`). « Valide = base » avait ete deduit du PAYLOAD,
+# jamais d'un log. Banc du 21/09 (meme son, 3 rejeux) : turbo -4,5/-4,7/-4,6 points, REGULIER ;
+# base +0,6/-7,0/-19,8, ERRATIQUE. Avec base ici, le renfort en ligne rendait l'ancien son (Umbrella,
+# 21/09 06:08, -10,6 points).
+# Source et revision FIGEES : ce sont exactement les poids du PC. Empreintes SHA-256 comparees le
+# 21/09 (model.safetensors turbo 3f6e0797…, VAE da17edb6…, silence_latent a778e9dd…) : identiques.
+# Le build ECHOUE si l'empreinte du modele differe (sha256sum -c) : jamais d'image au mauvais modele.
+ARG HF_REVISION=19671f406d603126926c1b7e2adc169acbcade22
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('ACE-Step/Ace-Step1.5', local_dir='/app/checkpoints', allow_patterns=['acestep-5Hz-lm-1.7B/*','vae/*','Qwen3-Embedding-0.6B/*','config.json'])" \
-    && python -c "from huggingface_hub import snapshot_download; snapshot_download('ACE-Step/acestep-v15-base', local_dir='/app/checkpoints/acestep-v15-base')" \
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('ACE-Step/Ace-Step1.5', revision='${HF_REVISION}', local_dir='/app/checkpoints', allow_patterns=['acestep-v15-turbo/*','acestep-5Hz-lm-1.7B/*','vae/*','Qwen3-Embedding-0.6B/*','config.json'])" \
+    && echo "3f6e0797fad420a39bd33979eb6e840e30989e34a3794e843d23b60ec6e422d7  /app/checkpoints/acestep-v15-turbo/model.safetensors" | sha256sum -c - \
     && du -sh /app/checkpoints
 
 # ⚠ `ACESTEP_CHECKPOINTS_DIR` EST OBLIGATOIRE. Sans elle, le moteur resout ses poids dans
@@ -75,7 +85,7 @@ RUN python -c "from huggingface_hub import snapshot_download; snapshot_download(
 # masquaient le probleme. Sources lues : `acestep/model_downloader.py:get_checkpoints_dir` et
 # `init_service_orchestrator.py` (`model_path = os.path.join(checkpoint_dir, config_path)`).
 ENV ACESTEP_CHECKPOINTS_DIR=/app/checkpoints \
-    ACESTEP_CONFIG_PATH=acestep-v15-base \
+    ACESTEP_CONFIG_PATH=acestep-v15-turbo \
     ACESTEP_LM_MODEL_PATH=/app/checkpoints/acestep-5Hz-lm-1.7B \
     ACESTEP_LM_BACKEND=pt \
     ACESTEP_DEVICE=cuda \

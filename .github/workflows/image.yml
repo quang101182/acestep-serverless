@@ -7,7 +7,7 @@ on:
     inputs:
       acestep_ref:
         description: "Commit ou branche d'ACE-Step a figer dans l'image"
-        default: main
+        default: ca1e85fe9430179831e6bc6be790c332190a3866   # = le PC (21/09)
   push:
     branches: [main, master]
     paths: ["Dockerfile", "handler.py", ".github/workflows/image.yml"]
@@ -44,7 +44,7 @@ jobs:
           push: true
           provenance: false
           build-args: |
-            ACESTEP_REF=${{ inputs.acestep_ref || 'main' }}
+            ACESTEP_REF=${{ inputs.acestep_ref || 'ca1e85fe9430179831e6bc6be790c332190a3866' }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/acestep-serverless:latest
             ghcr.io/${{ github.repository_owner }}/acestep-serverless:${{ github.run_number }}
